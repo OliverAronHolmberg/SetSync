@@ -65,7 +65,7 @@ fun GymApp() {
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
                     label = { Text("Övningar", color = if (selectedTab == 2) Blue else TextGray, fontSize = 12.sp) },
-                    icon = { Icon(Icons.Filled.FitnessCenter, contentDescription = "Övningar", tint = if (selectedTab == 2) Blue else TextGray) },
+                    icon = { Icon(Icons.Filled.Star, contentDescription = "Övningar", tint = if (selectedTab == 2) Blue else TextGray) },
                     colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent)
                 )
                 NavigationBarItem(
