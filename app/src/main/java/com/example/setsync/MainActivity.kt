@@ -1,5 +1,6 @@
 package com.example.setsync
 
+import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -23,8 +24,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -35,14 +39,16 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import java.io.File
+import java.io.FileOutputStream
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // DATABASE IMPORTS
 import com.example.setsync.data.AppDatabase
 import com.example.setsync.data.WorkoutDao
 import com.example.setsync.model.WorkoutSet
-
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 // Put this at the bottom of Exercise.kt or top of MainActivity.kt (outside the class)
 data class ExerciseWithSets(
@@ -54,6 +60,25 @@ val DarkBg = Color(0xFF1A1E2E)
 val CardBg = Color(0xFF252A3D)
 val Blue = Color(0xFF2196F3)
 val TextGray = Color(0xFFAAAAAA)
+
+// Helper function to save image to internal storage
+fun saveImageToInternalStorage(context: Context, uri: Uri): Uri? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+        val fileName = "exercise_${System.currentTimeMillis()}.jpg"
+        val file = File(context.filesDir, fileName)
+        val outputStream = FileOutputStream(file)
+        inputStream.use { input ->
+            outputStream.use { output ->
+                input.copyTo(output)
+            }
+        }
+        Uri.fromFile(file)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
 
 class MainActivity : ComponentActivity() {
     // Initialize the Database
@@ -106,11 +131,82 @@ fun GymApp(dao: WorkoutDao) {
 }
 
 @Composable
+fun HomeScreen() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkBg)
+            .padding(20.dp)
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text("Hej, Magnus!", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Text("\"Håll dig stark, varje rep räknas.\"", color = TextGray, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp, bottom = 24.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardBg),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Veckans Träning", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(">", color = TextGray)
+                }
+                Text("Veckans totala träning", color = TextGray, fontSize = 12.sp)
+                Spacer(modifier = Modifier.height(16.dp))
+                val days = listOf("To", "Me", "Do", "Fr", "Sa", "Sö")
+                val heights = listOf(0.4f, 0.7f, 0.3f, 0.9f, 0.5f, 0.2f)
+                Row(modifier = Modifier.fillMaxWidth().height(80.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
+                    days.forEachIndexed { index, day ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+                            Box(modifier = Modifier.width(20.dp).height((heights[index] * 60).dp).clip(RoundedCornerShape(4.dp)).background(Blue))
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(day, color = TextGray, fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = {},
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Blue),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text("Starta nytt pass", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text("Senaste pass", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardBg),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text("Senaste pass", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("22 sets", color = TextGray, fontSize = 12.sp)
+                }
+                Text(">", color = TextGray)
+            }
+        }
+    }
+}
+
+@Composable
 fun ExercisesScreen(dao: WorkoutDao) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
 
-    // Fix: collectAsState uses parameter 'initial', not 'initialValue'
     val exercises by dao.getAllExercisesFlow().collectAsState(initial = emptyList())
 
     var showDialog by remember { mutableStateOf(false) }
@@ -120,7 +216,18 @@ fun ExercisesScreen(dao: WorkoutDao) {
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
-        onResult = { uri -> selectedImageUri = uri }
+        onResult = { uri -> 
+            if (uri != null) {
+                scope.launch(Dispatchers.IO) {
+                    val localUri = saveImageToInternalStorage(context, uri)
+                    if (localUri != null) {
+                        withContext(Dispatchers.Main) {
+                            selectedImageUri = localUri
+                        }
+                    }
+                }
+            }
+        }
     )
 
     Column(modifier = Modifier.fillMaxSize().background(DarkBg).padding(20.dp)) {
@@ -152,14 +259,22 @@ fun ExercisesScreen(dao: WorkoutDao) {
                 ExerciseCardItem(
                     exercise = exercise,
                     onEdit = {
-                        // SET UP EDIT MODE
                         editingExercise = exercise
                         currentName = exercise.name
                         selectedImageUri = exercise.imageUri?.let { Uri.parse(it) }
                         showDialog = true
                     },
                     onDelete = {
-                        scope.launch(Dispatchers.IO) { dao.deleteExercise(exercise) }
+                        scope.launch(Dispatchers.IO) { 
+                            // Cleanup local file if it exists
+                            exercise.imageUri?.let { uriStr ->
+                                try {
+                                    val file = File(Uri.parse(uriStr).path!!)
+                                    if (file.exists()) file.delete()
+                                } catch (e: Exception) {}
+                            }
+                            dao.deleteExercise(exercise) 
+                        }
                     }
                 )
             }
@@ -183,7 +298,6 @@ fun ExercisesScreen(dao: WorkoutDao) {
     }
 
     if (showDialog) {
-        // This forces the dialog to sync with the editingExercise every time it opens
         LaunchedEffect(showDialog) {
             if (editingExercise != null) {
                 currentName = editingExercise!!.name
@@ -217,7 +331,6 @@ fun ExercisesScreen(dao: WorkoutDao) {
                     )
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Show a preview of the selected image in the dialog
                     if (selectedImageUri != null) {
                         AsyncImage(
                             model = selectedImageUri,
@@ -245,7 +358,7 @@ fun ExercisesScreen(dao: WorkoutDao) {
             confirmButton = {
                 TextButton(onClick = {
                     if (currentName.isNotBlank()) {
-                        val currentEditing = editingExercise // Capture the exercise before resetting state
+                        val currentEditing = editingExercise
                         scope.launch(Dispatchers.IO) {
                             val exerciseToSave = if (currentEditing != null) {
                                 currentEditing.copy(
@@ -255,7 +368,6 @@ fun ExercisesScreen(dao: WorkoutDao) {
                             } else {
                                 Exercise(name = currentName, imageUri = selectedImageUri?.toString())
                             }
-
                             dao.insertExercise(exerciseToSave)
                         }
                         showDialog = false
@@ -281,26 +393,28 @@ fun ExerciseCardItem(exercise: Exercise, onEdit: () -> Unit, onDelete: () -> Uni
         shape = RoundedCornerShape(16.dp)
     ) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (exercise.imageUri != null) {
-                AsyncImage(
-                    model = exercise.imageUri,
-                    contentDescription = null,
-                    modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(modifier = Modifier.size(50.dp).background(DarkBg, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)).background(DarkBg),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!exercise.imageUri.isNullOrBlank()) {
+                    AsyncImage(
+                        model = exercise.imageUri,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        error = rememberVectorPainter(Icons.Default.Face)
+                    )
+                } else {
                     Icon(Icons.Default.Build, contentDescription = null, tint = TextGray)
                 }
             }
             Spacer(modifier = Modifier.width(16.dp))
             Text(exercise.name, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
 
-            // EDIT BUTTON
             IconButton(onClick = onEdit) {
                 Icon(Icons.Default.Edit, contentDescription = "Redigera", tint = Blue)
             }
-            // DELETE BUTTON
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = "Radera", tint = Color.Red.copy(alpha = 0.7f))
             }
@@ -308,10 +422,8 @@ fun ExerciseCardItem(exercise: Exercise, onEdit: () -> Unit, onDelete: () -> Uni
     }
 }
 
-// Add your existing HomeScreen, SessionsScreen, and OneRMScreen logic below
-@Composable fun HomeScreen() { /* ... */ }
-@Composable fun SessionsScreen() { /* ... */ }
-@Composable fun OneRMScreen() {
+@Composable
+fun OneRMScreen() {
     var weight by remember { mutableStateOf("") }
     var reps by remember { mutableStateOf("") }
     var result by remember { mutableStateOf<Float?>(null) }
@@ -325,7 +437,7 @@ fun ExerciseCardItem(exercise: Exercise, onEdit: () -> Unit, onDelete: () -> Uni
             .padding(20.dp)
     ) {
         Spacer(modifier = Modifier.height(16.dp))
-        Text("1RM Räknare", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Text("1RM Räknare", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(24.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -394,8 +506,8 @@ fun ExerciseCardItem(exercise: Exercise, onEdit: () -> Unit, onDelete: () -> Uni
 
         result?.let { rm ->
             Spacer(modifier = Modifier.height(24.dp))
-            Text("Ditt uppskattade 1RM är:", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            Text("%.1f".format(rm), color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text("Ditt uppskattade 1RM är:", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            Text("%.1f".format(rm), color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -418,4 +530,36 @@ fun ExerciseCardItem(exercise: Exercise, onEdit: () -> Unit, onDelete: () -> Uni
         }
     }
 }
+
+@Composable
+fun SessionsScreen() {
+    var sessionLocation by remember { mutableStateOf("Orminge") }
+    var currentWorkoutExercises by remember { mutableStateOf(mutableListOf<ExerciseWithSets>()) }
+
+    Column(modifier = Modifier.fillMaxSize().padding(20.dp).background(DarkBg)) {
+        Text("Logga Pass", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Column(modifier = Modifier.verticalScroll(rememberScrollState()).weight(1f)) {
+            currentWorkoutExercises.forEach { workoutExercise ->
+                ExerciseSetCard(workoutExercise) {
+                    // Logic to handle deleting/editing that entire exercise block
+                }
+            }
+        }
+
+        Card(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), colors = CardDefaults.cardColors(containerColor = CardBg)) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Button(onClick = { /* Select Exercise from Library */ }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Blue)) {
+                    Text("Byt övning", color = Color.White)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(onClick = { /* Create and Insert the Session + Sets to SQLite */ }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Blue)) {
+                    Text("Spara övning", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
 @Composable fun ExerciseSetCard(exerciseData: ExerciseWithSets, onDelete: () -> Unit) { /* ... */ }
