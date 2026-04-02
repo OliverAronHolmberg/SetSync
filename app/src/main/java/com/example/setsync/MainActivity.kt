@@ -42,6 +42,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -49,11 +50,12 @@ import kotlinx.coroutines.withContext
 import com.example.setsync.data.AppDatabase
 import com.example.setsync.data.WorkoutDao
 import com.example.setsync.model.WorkoutSet
+import com.example.setsync.model.WorkoutSession
 
 // Put this at the bottom of Exercise.kt or top of MainActivity.kt (outside the class)
 data class ExerciseWithSets(
     val exercise: Exercise,
-    val sets: MutableList<WorkoutSet> = mutableListOf()
+    val sets: List<WorkoutSet> = emptyList()
 )
 
 val DarkBg = Color(0xFF1A1E2E)
@@ -119,10 +121,12 @@ fun GymApp(dao: WorkoutDao) {
         },
         containerColor = DarkBg
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)) {
             when (selectedTab) {
                 0 -> HomeScreen()
-                1 -> SessionsScreen()
+                1 -> SessionsScreen(dao)
                 2 -> ExercisesScreen(dao) // Passes the DAO to your exercise list
                 3 -> OneRMScreen()
             }
@@ -157,10 +161,16 @@ fun HomeScreen() {
                 Spacer(modifier = Modifier.height(16.dp))
                 val days = listOf("To", "Me", "Do", "Fr", "Sa", "Sö")
                 val heights = listOf(0.4f, 0.7f, 0.3f, 0.9f, 0.5f, 0.2f)
-                Row(modifier = Modifier.fillMaxWidth().height(80.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
+                Row(modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
                     days.forEachIndexed { index, day ->
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
-                            Box(modifier = Modifier.width(20.dp).height((heights[index] * 60).dp).clip(RoundedCornerShape(4.dp)).background(Blue))
+                            Box(modifier = Modifier
+                                .width(20.dp)
+                                .height((heights[index] * 60).dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Blue))
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(day, color = TextGray, fontSize = 10.sp)
                         }
@@ -173,7 +183,9 @@ fun HomeScreen() {
 
         Button(
             onClick = {},
-            modifier = Modifier.fillMaxWidth().height(52.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Blue),
             shape = RoundedCornerShape(8.dp)
         ) {
@@ -190,7 +202,9 @@ fun HomeScreen() {
             colors = CardDefaults.cardColors(containerColor = CardBg),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
                     Text("Senaste pass", color = Color.White, fontWeight = FontWeight.Bold)
                     Text("22 sets", color = TextGray, fontSize = 12.sp)
@@ -230,8 +244,11 @@ fun ExercisesScreen(dao: WorkoutDao) {
         }
     )
 
-    Column(modifier = Modifier.fillMaxSize().background(DarkBg).padding(20.dp)) {
-        Text("Mina Övningar", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .background(DarkBg)
+        .padding(20.dp)) {
+        Text("Mina Övningar", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
@@ -252,7 +269,9 @@ fun ExercisesScreen(dao: WorkoutDao) {
         val filteredList = exercises.filter { it.name.contains(searchQuery, ignoreCase = true) }.reversed()
 
         Column(
-            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             filteredList.forEach { exercise ->
@@ -287,7 +306,10 @@ fun ExercisesScreen(dao: WorkoutDao) {
                 selectedImageUri = null
                 showDialog = true
             },
-            modifier = Modifier.fillMaxWidth().height(56.dp).padding(top = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(top = 8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Blue),
             shape = RoundedCornerShape(12.dp)
         ) {
@@ -394,7 +416,10 @@ fun ExerciseCardItem(exercise: Exercise, onEdit: () -> Unit, onDelete: () -> Uni
     ) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)).background(DarkBg),
+                modifier = Modifier
+                    .size(50.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(DarkBg),
                 contentAlignment = Alignment.Center
             ) {
                 if (!exercise.imageUri.isNullOrBlank()) {
@@ -437,7 +462,7 @@ fun OneRMScreen() {
             .padding(20.dp)
     ) {
         Spacer(modifier = Modifier.height(16.dp))
-        Text("1RM Räknare", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Text("1RM Räknare", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(24.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -497,7 +522,9 @@ fun OneRMScreen() {
                 val r = reps.toFloatOrNull() ?: 0f
                 result = w * (1 + r / 30.0f)
             },
-            modifier = Modifier.fillMaxWidth().height(52.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Blue),
             shape = RoundedCornerShape(8.dp)
         ) {
@@ -532,34 +559,415 @@ fun OneRMScreen() {
 }
 
 @Composable
-fun SessionsScreen() {
-    var sessionLocation by remember { mutableStateOf("Orminge") }
-    var currentWorkoutExercises by remember { mutableStateOf(mutableListOf<ExerciseWithSets>()) }
+fun SessionsScreen(dao: WorkoutDao) {
+    var showEditor by remember { mutableStateOf(false) }
+    var editingSession by remember { mutableStateOf<WorkoutSession?>(null) }
+    val sessions by dao.getAllSessionsFlow().collectAsState(initial = emptyList())
+    var expandedSessionId by remember { mutableStateOf<Int?>(null) }
+    val scope = rememberCoroutineScope()
+    var sessionSets by remember { mutableStateOf<Map<Int, List<WorkoutSet>>>(emptyMap()) }
+    val exercises by dao.getAllExercisesFlow().collectAsState(initial = emptyList())
 
-    Column(modifier = Modifier.fillMaxSize().padding(20.dp).background(DarkBg)) {
-        Text("Logga Pass", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Column(modifier = Modifier.verticalScroll(rememberScrollState()).weight(1f)) {
-            currentWorkoutExercises.forEach { workoutExercise ->
-                ExerciseSetCard(workoutExercise) {
-                    // Logic to handle deleting/editing that entire exercise block
+    // Refresh sets for the expanded session when the data changes or editor closes
+    LaunchedEffect(sessions, expandedSessionId, showEditor) {
+        if (!showEditor) {
+            expandedSessionId?.let { id ->
+                val loaded = withContext(Dispatchers.IO) {
+                    dao.getSetsForSession(id)
                 }
+                sessionSets = sessionSets + (id to loaded)
             }
         }
+    }
 
-        Card(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), colors = CardDefaults.cardColors(containerColor = CardBg)) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Button(onClick = { /* Select Exercise from Library */ }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Blue)) {
-                    Text("Byt övning", color = Color.White)
+    if (showEditor) {
+        SessionEditor(
+            dao = dao,
+            existingSession = editingSession,
+            onBack = {
+                showEditor = false
+                editingSession = null
+            }
+        )
+    } else {
+        Column(modifier = Modifier.fillMaxSize().background(DarkBg).padding(20.dp)) {
+            Text("Pass", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Column(
+                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (sessions.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) {
+                        Text("Inga pass loggade än!", color = TextGray, fontSize = 16.sp)
+                    }
+                } else {
+                    sessions.forEach { session ->
+                        val isExpanded = expandedSessionId == session.id
+                        val sets = sessionSets[session.id] ?: emptyList()
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = CardBg),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(session.location.ifBlank { "Okänd plats" }, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                        Text(session.date, color = TextGray, fontSize = 13.sp)
+                                    }
+                                    IconButton(onClick = {
+                                        editingSession = session
+                                        showEditor = true
+                                    }) {
+                                        Icon(Icons.Default.Edit, contentDescription = "Redigera", tint = Blue)
+                                    }
+                                    IconButton(onClick = {
+                                        if (isExpanded) {
+                                            expandedSessionId = null
+                                        } else {
+                                            expandedSessionId = session.id
+                                            scope.launch(Dispatchers.IO) {
+                                                val loaded = dao.getSetsForSession(session.id)
+                                                withContext(Dispatchers.Main) {
+                                                    sessionSets = sessionSets + (session.id to loaded)
+                                                }
+                                            }
+                                        }
+                                    }) {
+                                        Icon(
+                                            if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                            contentDescription = null,
+                                            tint = TextGray
+                                        )
+                                    }
+                                }
+
+                                if (isExpanded) {
+                                    HorizontalDivider(color = DarkBg)
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        if (sets.isEmpty()) {
+                                            Text("Inga sets loggade", color = TextGray, fontSize = 14.sp)
+                                        } else {
+                                            val grouped = sets.groupBy { it.exerciseId }
+                                            grouped.forEach { (exerciseId, exSets) ->
+                                                val exerciseName = exercises.find { it.id == exerciseId }?.name ?: "Okänd övning"
+                                                Text(exerciseName, color = Blue, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(bottom = 6.dp))
+                                                Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                                                    Text("Set", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(0.5f))
+                                                    Text("Vikt", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                                                    Text("Reps", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                                                }
+                                                exSets.forEachIndexed { index, set ->
+                                                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                                                        Text("${index + 1}", color = TextGray, fontSize = 14.sp, modifier = Modifier.weight(0.5f))
+                                                        Text("${set.weight} kg", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                                        Text("${set.reps}", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.height(12.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(onClick = { /* Create and Insert the Session + Sets to SQLite */ }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Blue)) {
-                    Text("Spara övning", color = Color.White, fontWeight = FontWeight.Bold)
-                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
+                onClick = {
+                    editingSession = null
+                    showEditor = true
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Blue),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Starta nytt pass", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
-@Composable fun ExerciseSetCard(exerciseData: ExerciseWithSets, onDelete: () -> Unit) { /* ... */ }
+@Composable
+fun SessionEditor(dao: WorkoutDao, existingSession: WorkoutSession? = null, onBack: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val exercises by dao.getAllExercisesFlow().collectAsState(initial = emptyList())
+    var location by remember { mutableStateOf(existingSession?.location ?: "") }
+    var selectedExercises by remember { mutableStateOf(listOf<ExerciseWithSets>()) }
+    var showPicker by remember { mutableStateOf(false) }
+    var saved by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    // Load existing sets if editing
+    LaunchedEffect(existingSession, exercises) {
+        if (existingSession != null && exercises.isNotEmpty() && selectedExercises.isEmpty()) {
+            val existingSets = withContext(Dispatchers.IO) {
+                dao.getSetsForSession(existingSession.id)
+            }
+            val grouped = existingSets.groupBy { it.exerciseId }
+            val loaded = grouped.map { (exerciseId, sets) ->
+                val exercise = exercises.find { it.id == exerciseId }
+                if (exercise != null) {
+                    ExerciseWithSets(exercise = exercise, sets = sets)
+                } else null
+            }.filterNotNull()
+            selectedExercises = loaded
+        }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            containerColor = CardBg,
+            title = { Text("Ta bort pass?", color = Color.White) },
+            text = { Text("Är du säker på att du vill ta bort detta pass? Det går inte att ångra.", color = TextGray) },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch(Dispatchers.IO) {
+                        if (existingSession != null) {
+                            dao.deleteSetsForSession(existingSession.id)
+                            dao.deleteSession(existingSession)
+                        }
+                        withContext(Dispatchers.Main) {
+                            onBack()
+                        }
+                    }
+                }) { Text("Ta bort", color = Color.Red) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Avbryt", color = TextGray)
+                }
+            }
+        )
+    }
+
+    if (showPicker) {
+        AlertDialog(
+            onDismissRequest = { showPicker = false },
+            containerColor = CardBg,
+            title = { Text("Välj övning", color = Color.White) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    exercises.forEach { exercise ->
+                        TextButton(onClick = {
+                            selectedExercises = selectedExercises + ExerciseWithSets(
+                                exercise = exercise,
+                                sets = listOf(WorkoutSet(sessionId = existingSession?.id ?: 0, exerciseId = exercise.id, weight = 0.0, reps = 0))
+                            )
+                            showPicker = false
+                        }) {
+                            Text(exercise.name, color = Color.White, fontSize = 16.sp)
+                        }
+                        HorizontalDivider(color = DarkBg)
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) {
+                    Text("Stäng", color = TextGray)
+                }
+            }
+        )
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(DarkBg).padding(20.dp)) {
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White)
+            }
+            Text(if (existingSession != null) "Redigera Pass" else "Logga Pass", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            if (existingSession != null) {
+                IconButton(onClick = { showDeleteConfirm = true }) {
+                    Icon(Icons.Default.Delete, contentDescription = "Ta bort pass", tint = Color.Red.copy(alpha = 0.7f))
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = location,
+            onValueChange = { location = it },
+            placeholder = { Text("Plats (t.ex. Orminge)", color = TextGray) },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                unfocusedBorderColor = CardBg, focusedContainerColor = CardBg, unfocusedContainerColor = CardBg
+            ),
+            shape = RoundedCornerShape(12.dp)
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Column(
+            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            selectedExercises.forEachIndexed { exIndex, exWithSets ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(exWithSets.exercise.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            IconButton(onClick = {
+                                selectedExercises = selectedExercises.toMutableList().also { it.removeAt(exIndex) }
+                            }) {
+                                Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red.copy(alpha = 0.7f))
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Text("Set", color = TextGray, fontSize = 13.sp, modifier = Modifier.weight(0.5f))
+                            Text("Vikt (kg)", color = TextGray, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            Text("Reps", color = TextGray, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            Spacer(modifier = Modifier.weight(0.4f))
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        exWithSets.sets.forEachIndexed { setIndex, set ->
+                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("${setIndex + 1}", color = TextGray, modifier = Modifier.weight(0.5f))
+                                OutlinedTextField(
+                                    value = if (set.weight == 0.0) "" else set.weight.toString(),
+                                    onValueChange = { v ->
+                                        val updated = selectedExercises.toMutableList()
+                                        val newSets = updated[exIndex].sets.toMutableList()
+                                        newSets[setIndex] = set.copy(weight = v.toDoubleOrNull() ?: 0.0)
+                                        updated[exIndex] = updated[exIndex].copy(sets = newSets.toList())
+                                        selectedExercises = updated
+                                    },
+                                    placeholder = { Text("0", color = TextGray) },
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                                        focusedContainerColor = DarkBg, unfocusedContainerColor = DarkBg,
+                                        unfocusedBorderColor = CardBg
+                                    ),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = if (set.reps == 0) "" else set.reps.toString(),
+                                    onValueChange = { v ->
+                                        val updated = selectedExercises.toMutableList()
+                                        val newSets = updated[exIndex].sets.toMutableList()
+                                        newSets[setIndex] = set.copy(reps = v.toIntOrNull() ?: 0)
+                                        updated[exIndex] = updated[exIndex].copy(sets = newSets.toList())
+                                        selectedExercises = updated
+                                    },
+                                    placeholder = { Text("0", color = TextGray) },
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                                        focusedContainerColor = DarkBg, unfocusedContainerColor = DarkBg,
+                                        unfocusedBorderColor = CardBg
+                                    ),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true
+                                )
+                                IconButton(onClick = {
+                                    val updated = selectedExercises.toMutableList()
+                                    val newSets = updated[exIndex].sets.toMutableList()
+                                    newSets.removeAt(setIndex)
+                                    updated[exIndex] = updated[exIndex].copy(sets = newSets.toList())
+                                    selectedExercises = updated
+                                }) {
+                                    Icon(Icons.Default.Close, contentDescription = null, tint = TextGray)
+                                }
+                            }
+                        }
+
+                        TextButton(onClick = {
+                            val updated = selectedExercises.toMutableList()
+                            val newSets = updated[exIndex].sets.toMutableList()
+                            newSets.add(WorkoutSet(sessionId = existingSession?.id ?: 0, exerciseId = exWithSets.exercise.id, weight = 0.0, reps = 0))
+                            updated[exIndex] = updated[exIndex].copy(sets = newSets.toList())
+                            selectedExercises = updated
+                        }) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = Blue, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Lägg till set", color = Blue, fontSize = 14.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Button(
+            onClick = { showPicker = true },
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = CardBg),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null, tint = Blue)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Lägg till övning", color = Blue, fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (saved) {
+            Text("Pass sparat! ✅", color = Blue, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        Button(
+            onClick = {
+                scope.launch(Dispatchers.IO) {
+                    val today = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())
+                    if (existingSession != null) {
+                        // Update existing session
+                        dao.deleteSetsForSession(existingSession.id)
+                        val updatedSession = existingSession.copy(location = location)
+                        dao.updateSession(updatedSession)
+                        selectedExercises.forEach { exWithSets ->
+                            exWithSets.sets.forEach { set ->
+                                dao.insertSet(set.copy(id = 0, sessionId = existingSession.id))
+                            }
+                        }
+                    } else {
+                        // New session
+                        val sessionId = dao.insertSession(WorkoutSession(date = today, location = location)).toInt()
+                        selectedExercises.forEach { exWithSets ->
+                            exWithSets.sets.forEach { set ->
+                                dao.insertSet(set.copy(id = 0, sessionId = sessionId))
+                            }
+                        }
+                    }
+                    withContext(Dispatchers.Main) {
+                        saved = true
+                        delay(600)
+                        onBack()
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Blue),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text(if (existingSession != null) "Uppdatera pass" else "Spara pass", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
