@@ -332,7 +332,7 @@ fun HomeScreen(dao: WorkoutDao, onStartNewSession: () -> Unit, onSessionClick: (
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Tidigare pass", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(session.location.ifBlank { "Tidigare pass" }, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Text(session.date, color = TextGray, fontSize = 14.sp)
                         }
                         Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextGray)
@@ -565,6 +565,7 @@ fun ExerciseCardItem(exercise: Exercise, onEdit: () -> Unit) {
 
 @Composable
 fun OneRMScreen(dao: WorkoutDao) {
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: 1RM, 1: Enheter
     var weight by remember { mutableStateOf("") }
     var reps by remember { mutableStateOf("") }
     var result by remember { mutableStateOf<Float?>(null) }
@@ -584,105 +585,195 @@ fun OneRMScreen(dao: WorkoutDao) {
         Text("Calculator", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(24.dp))
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Vikt", color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(bottom = 6.dp))
-                OutlinedTextField(
-                    value = weight,
-                    onValueChange = { weight = it },
-                    placeholder = { Text("10", color = TextGray) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Blue,
-                        unfocusedBorderColor = CardBg,
-                        focusedContainerColor = CardBg,
-                        unfocusedContainerColor = CardBg,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    ),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
-                    keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Right) }),
-                    singleLine = true
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Reps", color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(bottom = 6.dp))
-                OutlinedTextField(
-                    value = reps,
-                    onValueChange = { reps = it },
-                    placeholder = { Text("0", color = TextGray) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
-                        focusedBorderColor = Blue,
-                        unfocusedBorderColor = CardBg,
-                        focusedContainerColor = CardBg,
-                        unfocusedContainerColor = CardBg
-                    ),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = {
-                        focusManager.clearFocus()
-                        val w = weight.toFloatOrNull() ?: 0f
-                        val r = reps.toFloatOrNull() ?: 0f
-                        result = if (r == 1f) w else w * (1 + r / 30.0f)
-                    }),
-                    singleLine = true
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Button(
-            onClick = {
-                focusManager.clearFocus()
-                val w = weight.toFloatOrNull() ?: 0f
-                val r = reps.toFloatOrNull() ?: 0f
-                result = if (r == 1f) w else w * (1 + r / 30.0f)
-            },
+        // Tab Switcher
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Blue),
-            shape = RoundedCornerShape(12.dp)
+                .height(48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(CardBg)
+                .padding(4.dp)
         ) {
-            Text("Räkna ut", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Row(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (selectedTab == 0) Color(0xFF3A4155) else Color.Transparent)
+                        .clickable { selectedTab = 0 },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("1RM", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (selectedTab == 1) Color(0xFF3A4155) else Color.Transparent)
+                        .clickable { selectedTab = 1 },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Enheter", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
         }
 
-        result?.let { rm ->
-            Spacer(modifier = Modifier.height(24.dp))
-            Text("Ditt uppskattade 1RM är:", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-            Text("%.1f".format(rm), color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Spacer(modifier = Modifier.height(24.dp))
+
+        if (selectedTab == 0) {
+            // 1RM Calculator Content
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Vikt", color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(bottom = 6.dp))
+                    OutlinedTextField(
+                        value = weight,
+                        onValueChange = { weight = it },
+                        placeholder = { Text("10", color = TextGray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Blue,
+                            unfocusedBorderColor = CardBg,
+                            focusedContainerColor = CardBg,
+                            unfocusedContainerColor = CardBg,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Right) }),
+                        singleLine = true
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Reps", color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(bottom = 6.dp))
+                    OutlinedTextField(
+                        value = reps,
+                        onValueChange = { reps = it },
+                        placeholder = { Text("0", color = TextGray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                            focusedBorderColor = Blue,
+                            unfocusedBorderColor = CardBg,
+                            focusedContainerColor = CardBg,
+                            unfocusedContainerColor = CardBg
+                        ),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = {
+                            focusManager.clearFocus()
+                            val w = weight.toFloatOrNull() ?: 0f
+                            val r = reps.toFloatOrNull() ?: 0f
+                            val calc = if (r == 1f) w else w * (1 + r / 30.0f)
+                            result = kotlin.math.round(calc).toInt().toFloat()
+                        }),
+                        singleLine = true
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Button(
-                onClick = { showSaveDialog = true },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
+                onClick = {
+                    focusManager.clearFocus()
+                    val w = weight.toFloatOrNull() ?: 0f
+                    val r = reps.toFloatOrNull() ?: 0f
+                    val calc = if (r == 1f) w else w * (1 + r / 30.0f)
+                    result = kotlin.math.round(calc).toInt().toFloat()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Blue),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Icon(Icons.Default.Save, contentDescription = null, tint = Color.White)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Spara till Tracker", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Räkna ut", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            result?.let { rm ->
+                Spacer(modifier = Modifier.height(24.dp))
+                Text("Ditt uppskattade 1RM är:", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                Text("%.0f".format(rm), color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
 
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Button(
+                    onClick = { showSaveDialog = true },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Blue),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Save, contentDescription = null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Spara till Tracker", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Estimated Rep Maxes", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(bottom = 12.dp))
+                        val percentages = listOf(1 to 1.0f, 2 to 0.94f, 3 to 0.91f, 4 to 0.88f, 5 to 0.86f, 6 to 0.83f, 7 to 0.81f, 8 to 0.79f, 9 to 0.77f, 10 to 0.75f)
+                        val pctLabels = listOf("100%", "94%", "91%", "88%", "86%", "83%", "81%", "79%", "77%", "75%")
+                        percentages.forEachIndexed { index, (rep, pct) ->
+                            Text("${rep}RM:", color = TextGray, fontSize = 14.sp)
+                            Text("%.0f".format(rm * pct), color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                            Text("${pctLabels[index]} of 1RM", color = TextGray, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
+                        }
+                    }
+                }
+            }
+        } else {
+            // Unit Converter Content (Enheter)
+            var inputUnitValue by remember { mutableStateOf("") }
+            var isKgToLbs by remember { mutableStateOf(false) } // Default to LBS to KG
+            
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Estimated Rep Maxes", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(bottom = 12.dp))
-                    val percentages = listOf(1 to 1.0f, 2 to 0.94f, 3 to 0.91f, 4 to 0.88f, 5 to 0.86f, 6 to 0.83f, 7 to 0.81f, 8 to 0.79f, 9 to 0.77f, 10 to 0.75f)
-                    val pctLabels = listOf("100%", "94%", "91%", "88%", "86%", "83%", "81%", "79%", "77%", "75%")
-                    percentages.forEachIndexed { index, (rep, pct) ->
-                        Text("${rep}RM:", color = TextGray, fontSize = 14.sp)
-                        Text("%.1f".format(rm * pct), color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-                        Text("${pctLabels[index]} of 1RM", color = TextGray, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
+                Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(if (isKgToLbs) "KG" else "LBS", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        IconButton(onClick = { isKgToLbs = !isKgToLbs }) {
+                            Icon(Icons.Default.SwapHoriz, contentDescription = null, tint = Blue, modifier = Modifier.size(32.dp))
+                        }
+                        Text(if (isKgToLbs) "LBS" else "KG", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     }
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    OutlinedTextField(
+                        value = inputUnitValue,
+                        onValueChange = { inputUnitValue = it },
+                        label = { Text(if (isKgToLbs) "Vikt i KG" else "Vikt i LBS") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                            focusedBorderColor = Blue, unfocusedBorderColor = DarkBg,
+                            unfocusedContainerColor = DarkBg, focusedContainerColor = DarkBg
+                        ),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    
+                    Spacer(modifier = Modifier.height(32.dp))
+                    
+                    val input = inputUnitValue.toFloatOrNull() ?: 0f
+                    val converted = if (isKgToLbs) input * 2.20462f else input / 2.20462f
+                    
+                    Text("Resultat:", color = TextGray, fontSize = 16.sp)
+                    Text("%.1f".format(converted) + (if (isKgToLbs) " lbs" else " kg"), color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -693,19 +784,17 @@ fun OneRMScreen(dao: WorkoutDao) {
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },
             containerColor = CardBg,
-            title = { Text("Välj övning för 1RM", color = Color.White) },
+            title = { Text("Välj övning for 1RM", color = Color.White) },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     exercises.forEach { exercise ->
                         TextButton(onClick = {
                             scope.launch(Dispatchers.IO) {
                                 val today = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Calendar.getInstance().time)
-                                val roundedWeight = result?.let {
-                                    kotlin.math.round(it * 10) / 10.0
-                                } ?: 0.0
+                                val finalWeight = result?.toDouble() ?: 0.0
                                 dao.insertPersonalBest(PersonalBest(
                                     exerciseId = exercise.id,
-                                    weight = roundedWeight,
+                                    weight = finalWeight,
                                     reps = 1,
                                     date = today
                                 ))
