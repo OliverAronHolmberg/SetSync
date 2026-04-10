@@ -118,7 +118,11 @@ fun GymApp(dao: WorkoutDao) {
                     "Home" to Icons.Filled.Home,
                     "Sessions" to Icons.Filled.Assignment,
                     "Exercices" to Icons.Filled.FitnessCenter,
-                    "1RM Calculator" to Icons.Filled.Calculate
+                    "Calculator" to Icons.Filled.Calculate,
+                    "1RM tracker" to Icons.Filled.FitnessCenter
+
+
+
                 )
                 items.forEachIndexed { index, item ->
                     NavigationBarItem(
@@ -199,6 +203,7 @@ fun HomeScreen(dao: WorkoutDao, onStartNewSession: () -> Unit, onSessionClick: (
     }
 
     Column(
+
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBg)
@@ -223,7 +228,7 @@ fun HomeScreen(dao: WorkoutDao, onStartNewSession: () -> Unit, onSessionClick: (
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 24.dp, bottom = 16.dp, start = 8.dp, end = 8.dp)
-                    .height(200.dp),
+                    .height(150.dp),
                 contentAlignment = Alignment.BottomCenter
             ) {
                 Row(
@@ -231,7 +236,7 @@ fun HomeScreen(dao: WorkoutDao, onStartNewSession: () -> Unit, onSessionClick: (
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    val months = listOf("JAN", "FEB", "MAR", "APR", "MAJ", "JUN", "JUL", "AUG", "SEP", "OKT", "NOV", "DEC")
+                    val months = listOf("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
                     val calendar = Calendar.getInstance()
                     val currentYear = calendar.get(Calendar.YEAR)
 
@@ -569,7 +574,7 @@ fun OneRMScreen() {
             .verticalScroll(rememberScrollState())
             .padding(20.dp)
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
+
         Text("1RM Räknare", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -700,7 +705,7 @@ fun SessionsScreen(
         )
     } else {
         Column(modifier = Modifier.fillMaxSize().background(DarkBg).padding(20.dp)) {
-            Text("Pass", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text("Pass", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
             Spacer(modifier = Modifier.height(16.dp))
 
             Column(
