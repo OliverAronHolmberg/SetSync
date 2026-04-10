@@ -57,6 +57,7 @@ import com.example.setsync.data.AppDatabase
 import com.example.setsync.data.WorkoutDao
 import com.example.setsync.model.WorkoutSet
 import com.example.setsync.model.WorkoutSession
+import com.example.setsync.model.PersonalBest
 
 // Put this at the bottom of Exercise.kt or top of MainActivity.kt (outside the class)
 data class ExerciseWithSets(
@@ -94,7 +95,7 @@ class MainActivity : ComponentActivity() {
         androidx.room.Room.databaseBuilder(
             applicationContext,
             AppDatabase::class.java, "gym-db"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -171,7 +172,7 @@ fun GymApp(dao: WorkoutDao) {
                 }
                 2 -> ExercisesScreen(dao)
                 3 -> OneRMTrackerScreen(dao)
-                4 -> OneRMScreen()
+                4 -> OneRMScreen(dao)
 
             }
         }
@@ -416,6 +417,7 @@ fun ExercisesScreen(dao: WorkoutDao) {
             }
         }
 
+        Spacer(modifier = Modifier.height(12.dp))
         Button(
             onClick = {
                 editingExercise = null
@@ -425,8 +427,7 @@ fun ExercisesScreen(dao: WorkoutDao) {
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .padding(vertical = 12.dp),
+                .height(56.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Blue),
             shape = RoundedCornerShape(12.dp)
         ) {
@@ -434,6 +435,7 @@ fun ExercisesScreen(dao: WorkoutDao) {
             Spacer(modifier = Modifier.width(8.dp))
             Text("Skapa ny övning", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
+        Spacer(modifier = Modifier.height(12.dp))
     }
 
     if (showDialog) {
@@ -562,11 +564,14 @@ fun ExerciseCardItem(exercise: Exercise, onEdit: () -> Unit) {
 }
 
 @Composable
-fun OneRMScreen() {
+fun OneRMScreen(dao: WorkoutDao) {
     var weight by remember { mutableStateOf("") }
     var reps by remember { mutableStateOf("") }
     var result by remember { mutableStateOf<Float?>(null) }
     val focusManager = LocalFocusManager.current
+    val scope = rememberCoroutineScope()
+    val exercises by dao.getAllExercisesFlow().collectAsState(initial = emptyList())
+    var showSaveDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -576,7 +581,7 @@ fun OneRMScreen() {
             .verticalScroll(rememberScrollState())
     ) {
         Spacer(modifier = Modifier.height(20.dp))
-        Text("1RM Räknare", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Text("Calculator", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(24.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -619,7 +624,7 @@ fun OneRMScreen() {
                         focusManager.clearFocus()
                         val w = weight.toFloatOrNull() ?: 0f
                         val r = reps.toFloatOrNull() ?: 0f
-                        result = w * (1 + r / 30.0f)
+                        result = if (r == 1f) w else w * (1 + r / 30.0f)
                     }),
                     singleLine = true
                 )
@@ -633,21 +638,34 @@ fun OneRMScreen() {
                 focusManager.clearFocus()
                 val w = weight.toFloatOrNull() ?: 0f
                 val r = reps.toFloatOrNull() ?: 0f
-                result = w * (1 + r / 30.0f)
+                result = if (r == 1f) w else w * (1 + r / 30.0f)
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
+                .height(56.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Blue),
-            shape = RoundedCornerShape(8.dp)
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Text("Räkna ut", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Räkna ut", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
 
         result?.let { rm ->
             Spacer(modifier = Modifier.height(24.dp))
             Text("Ditt uppskattade 1RM är:", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
             Text("%.1f".format(rm), color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Button(
+                onClick = { showSaveDialog = true },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Blue),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.Save, contentDescription = null, tint = Color.White)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Spara till Tracker", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -670,20 +688,54 @@ fun OneRMScreen() {
         }
         Spacer(modifier = Modifier.height(20.dp))
     }
+
+    if (showSaveDialog) {
+        AlertDialog(
+            onDismissRequest = { showSaveDialog = false },
+            containerColor = CardBg,
+            title = { Text("Välj övning för 1RM", color = Color.White) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    exercises.forEach { exercise ->
+                        TextButton(onClick = {
+                            scope.launch(Dispatchers.IO) {
+                                val today = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Calendar.getInstance().time)
+                                val roundedWeight = result?.let {
+                                    kotlin.math.round(it * 10) / 10.0
+                                } ?: 0.0
+                                dao.insertPersonalBest(PersonalBest(
+                                    exerciseId = exercise.id,
+                                    weight = roundedWeight,
+                                    reps = 1,
+                                    date = today
+                                ))
+                            }
+                            showSaveDialog = false
+                        }) {
+                            Text(exercise.name, color = Color.White)
+                        }
+                        HorizontalDivider(color = DarkBg)
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showSaveDialog = false }) { Text("Avbryt", color = TextGray) }
+            }
+        )
+    }
 }
 
 @Composable
 fun OneRMTrackerScreen(dao: WorkoutDao) {
-    val sessions by dao.getAllSessionsFlow().collectAsState(initial = emptyList())
+    val personalBests by dao.getAllPersonalBestsFlow().collectAsState(initial = emptyList())
     val exercises by dao.getAllExercisesFlow().collectAsState(initial = emptyList())
+    val scope = rememberCoroutineScope()
 
-    val latestSession = sessions.firstOrNull()
-    val setsState = if (latestSession != null) {
-        dao.getSetsForSessionFlow(latestSession.id).collectAsState(initial = emptyList())
-    } else {
-        remember { mutableStateOf(emptyList<WorkoutSet>()) }
-    }
-    val sets = setsState.value
+    var showAddExerciseDialog by remember { mutableStateOf(false) }
+    var showPBDialog by remember { mutableStateOf<Int?>(null) } // exerciseId
+    var editingPB by remember { mutableStateOf<PersonalBest?>(null) }
+    var exerciseToDeleteHistory by remember { mutableStateOf<Int?>(null) }
 
     Box(
         modifier = Modifier
@@ -715,57 +767,63 @@ fun OneRMTrackerScreen(dao: WorkoutDao) {
                 shape = RoundedCornerShape(24.dp)
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
-                    if (sets.isEmpty()) {
+                    if (personalBests.isEmpty()) {
                         Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                             Text("Ingen historik loggad än", color = TextGray, fontSize = 14.sp)
                         }
                     } else {
-                        val grouped = sets.groupBy { it.exerciseId }
-                        grouped.forEach { (exerciseId, exSets) ->
+                        val grouped = personalBests.groupBy { it.exerciseId }
+                        grouped.forEach { (exerciseId, pbs) ->
                             val exerciseName = exercises.find { it.id == exerciseId }?.name ?: "Okänd övning"
                             
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                                verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = exerciseName,
                                     color = Blue,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 18.sp
                                 )
-                                Icon(
-                                    Icons.Default.Edit,
-                                    contentDescription = null,
-                                    tint = TextGray,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                IconButton(onClick = { exerciseToDeleteHistory = exerciseId }) {
+                                    Icon(
+                                        Icons.Default.DeleteForever,
+                                        contentDescription = "Rensa historik",
+                                        tint = Color.Red.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                             
                             Spacer(modifier = Modifier.height(4.dp))
 
-                            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
-                                Text("Date", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(0.5f))
+                            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                                Text("Datum", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(1.5f))
                                 Text("Vikt", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(1f))
                                 Text("Reps", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                                Spacer(modifier = Modifier.width(18.dp))
+                                Spacer(modifier = Modifier.width(32.dp))
                             }
                             
-                            exSets.forEachIndexed { index, set ->
+                            pbs.forEach { pb ->
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("${index + 1}", color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(0.5f))
-                                    Text("${set.weight} kg", color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                                    Text("${set.reps}", color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                                    Icon(
-                                        Icons.Default.Edit,
-                                        contentDescription = null,
-                                        tint = TextGray,
-                                        modifier = Modifier.size(14.dp)
-                                    )
+                                    Text(pb.date, color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1.5f))
+                                    Text("${pb.weight} kg", color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                                    Text("${pb.reps}", color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                                    IconButton(
+                                        onClick = { editingPB = pb },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Edit,
+                                            contentDescription = null,
+                                            tint = TextGray,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
                                 }
                             }
                             
@@ -773,7 +831,7 @@ fun OneRMTrackerScreen(dao: WorkoutDao) {
                             
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                 Surface(
-                                    onClick = { },
+                                    onClick = { showPBDialog = exerciseId },
                                     color = Color.Transparent,
                                     shape = RoundedCornerShape(8.dp),
                                     border = BorderStroke(1.dp, TextGray.copy(alpha = 0.5f))
@@ -784,7 +842,7 @@ fun OneRMTrackerScreen(dao: WorkoutDao) {
                                     ) {
                                         Icon(Icons.Default.Add, contentDescription = null, tint = Blue, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Add New PB", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                        Text("Lägg till PB", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -799,17 +857,161 @@ fun OneRMTrackerScreen(dao: WorkoutDao) {
 
         // Floating Bottom Button
         Button(
-            onClick = { },
+            onClick = { showAddExerciseDialog = true },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(20.dp)
                 .fillMaxWidth()
-                .height(64.dp),
+                .height(56.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Blue),
-            shape = RoundedCornerShape(8.dp)
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Text("Add New PB Exercise",color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Logga PB på ny övning", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
+    }
+
+    // Dialogs
+    if (exerciseToDeleteHistory != null) {
+        AlertDialog(
+            onDismissRequest = { exerciseToDeleteHistory = null },
+            containerColor = CardBg,
+            title = { Text("Rensa historik?", color = Color.White) },
+            text = { Text("Vill du ta bort all historik för denna övning?", color = TextGray) },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch(Dispatchers.IO) {
+                        exerciseToDeleteHistory?.let { dao.deletePersonalBestsForExercise(it) }
+                        withContext(Dispatchers.Main) { exerciseToDeleteHistory = null }
+                    }
+                }) { Text("Rensa", color = Color.Red) }
+            },
+            dismissButton = {
+                TextButton(onClick = { exerciseToDeleteHistory = null }) { Text("Avbryt", color = TextGray) }
+            }
+        )
+    }
+
+    if (showAddExerciseDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddExerciseDialog = false },
+            containerColor = CardBg,
+            title = { Text("Välj övning", color = Color.White) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    exercises.forEach { exercise ->
+                        TextButton(onClick = {
+                            showPBDialog = exercise.id
+                            showAddExerciseDialog = false
+                        }) {
+                            Text(exercise.name, color = Color.White, fontSize = 16.sp)
+                        }
+                        HorizontalDivider(color = DarkBg)
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showAddExerciseDialog = false }) {
+                    Text("Avbryt", color = TextGray)
+                }
+            }
+        )
+    }
+
+    if (showPBDialog != null || editingPB != null) {
+        val exerciseId = showPBDialog ?: editingPB?.exerciseId ?: 0
+        val exerciseName = exercises.find { it.id == exerciseId }?.name ?: "Övning"
+        
+        var weight by remember { mutableStateOf(editingPB?.weight?.toString() ?: "") }
+        var reps by remember { mutableStateOf(editingPB?.reps?.toString() ?: "") }
+        var date by remember { mutableStateOf(editingPB?.date ?: SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Calendar.getInstance().time)) }
+
+        AlertDialog(
+            onDismissRequest = { 
+                showPBDialog = null
+                editingPB = null
+            },
+            containerColor = CardBg,
+            title = { Text(if (editingPB == null) "Nytt PB: $exerciseName" else "Redigera PB: $exerciseName", color = Color.White) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = weight,
+                        onValueChange = { weight = it },
+                        label = { Text("Vikt (kg)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = reps,
+                        onValueChange = { reps = it },
+                        label = { Text("Reps") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = date,
+                        onValueChange = { date = it },
+                        label = { Text("Datum (dd/mm/yyyy)") },
+                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    if (editingPB != null) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        TextButton(
+                            onClick = {
+                                scope.launch(Dispatchers.IO) {
+                                    editingPB?.let { dao.deletePersonalBest(it) }
+                                    withContext(Dispatchers.Main) {
+                                        editingPB = null
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Ta bort PB", color = Color.Red)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val w = weight.toDoubleOrNull() ?: 0.0
+                    val r = reps.toIntOrNull() ?: 0
+                    if (w > 0 && r > 0) {
+                        scope.launch(Dispatchers.IO) {
+                            val pb = PersonalBest(
+                                id = editingPB?.id ?: 0,
+                                exerciseId = exerciseId,
+                                weight = w,
+                                reps = r,
+                                date = date
+                            )
+                            if (editingPB == null) dao.insertPersonalBest(pb) else dao.updatePersonalBest(pb)
+                            withContext(Dispatchers.Main) {
+                                showPBDialog = null
+                                editingPB = null
+                            }
+                        }
+                    }
+                }) {
+                    Text("Spara", color = Blue, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { 
+                    showPBDialog = null
+                    editingPB = null
+                }) {
+                    Text("Avbryt", color = TextGray)
+                }
+            }
+        )
     }
 }
 
@@ -880,18 +1082,18 @@ fun SessionsScreen(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-
             Button(
                 onClick = {
                     editingSession = null
                     showEditor = true
                 },
-                modifier = Modifier.fillMaxWidth().height(52.dp).padding(bottom = 12.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Blue),
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Text("Starta nytt pass", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
+            Spacer(modifier = Modifier.height(12.dp))
         }
     }
 }
@@ -971,6 +1173,7 @@ fun SessionEditor(dao: WorkoutDao, existingSession: WorkoutSession? = null, onBa
     val scope = rememberCoroutineScope()
     val exercises by dao.getAllExercisesFlow().collectAsState(initial = emptyList())
     var location by remember { mutableStateOf(existingSession?.location ?: "") }
+    var date by remember { mutableStateOf(existingSession?.date ?: SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Calendar.getInstance().time)) }
     var selectedExercises by remember { mutableStateOf(listOf<ExerciseWithSets>()) }
     var showPicker by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
@@ -1026,7 +1229,8 @@ fun SessionEditor(dao: WorkoutDao, existingSession: WorkoutSession? = null, onBa
             containerColor = CardBg,
             title = { Text("Välj övning", color = Color.White) },
             text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                val scrollState = rememberScrollState()
+                Column(modifier = Modifier.verticalScroll(scrollState)) {
                     exercises.forEach { exercise ->
                         TextButton(onClick = {
                             selectedExercises = selectedExercises + ExerciseWithSets(
@@ -1069,7 +1273,23 @@ fun SessionEditor(dao: WorkoutDao, existingSession: WorkoutSession? = null, onBa
         OutlinedTextField(
             value = location,
             onValueChange = { location = it },
-            placeholder = { Text("Plats (t.ex. Orminge)", color = TextGray) },
+            label = { Text("Plats", color = TextGray) },
+            placeholder = { Text("t.ex. Orminge", color = TextGray) },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                unfocusedBorderColor = CardBg, focusedContainerColor = CardBg, unfocusedContainerColor = CardBg
+            ),
+            shape = RoundedCornerShape(12.dp)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = date,
+            onValueChange = { date = it },
+            label = { Text("Datum", color = TextGray) },
+            placeholder = { Text("dd/mm/yyyy", color = TextGray) },
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = Color.White, unfocusedTextColor = Color.White,
@@ -1184,13 +1404,13 @@ fun SessionEditor(dao: WorkoutDao, existingSession: WorkoutSession? = null, onBa
 
         Button(
             onClick = { showPicker = true },
-            modifier = Modifier.fillMaxWidth().height(48.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
             colors = ButtonDefaults.buttonColors(containerColor = CardBg),
-            shape = RoundedCornerShape(8.dp)
+            shape = RoundedCornerShape(12.dp)
         ) {
             Icon(Icons.Default.Add, contentDescription = null, tint = Blue)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Lägg till övning", color = Blue, fontWeight = FontWeight.Bold)
+            Text("Lägg till övning", color = Blue, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -1203,11 +1423,10 @@ fun SessionEditor(dao: WorkoutDao, existingSession: WorkoutSession? = null, onBa
         Button(
             onClick = {
                 scope.launch(Dispatchers.IO) {
-                    val today = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())
                     if (existingSession != null) {
                         // Update existing session
                         dao.deleteSetsForSession(existingSession.id)
-                        val updatedSession = existingSession.copy(location = location)
+                        val updatedSession = existingSession.copy(location = location, date = date)
                         dao.updateSession(updatedSession)
                         selectedExercises.forEach { exWithSets ->
                             exWithSets.sets.forEach { set ->
@@ -1216,7 +1435,7 @@ fun SessionEditor(dao: WorkoutDao, existingSession: WorkoutSession? = null, onBa
                         }
                     } else {
                         // New session
-                        val sessionId = dao.insertSession(WorkoutSession(date = today, location = location)).toInt()
+                        val sessionId = dao.insertSession(WorkoutSession(date = date, location = location)).toInt()
                         selectedExercises.forEach { exWithSets ->
                             exWithSets.sets.forEach { set ->
                                 dao.insertSet(set.copy(id = 0, sessionId = sessionId))
@@ -1230,11 +1449,11 @@ fun SessionEditor(dao: WorkoutDao, existingSession: WorkoutSession? = null, onBa
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth().height(52.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Blue),
-            shape = RoundedCornerShape(8.dp)
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Text(if (existingSession != null) "Uppdatera pass" else "Spara pass", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(if (existingSession != null) "Uppdatera pass" else "Spara pass", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

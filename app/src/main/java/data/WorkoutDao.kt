@@ -2,6 +2,7 @@ package com.example.setsync.data
 
 import androidx.room.*
 import com.example.setsync.model.Exercise
+import com.example.setsync.model.PersonalBest
 import com.example.setsync.model.WorkoutSession
 import com.example.setsync.model.WorkoutSet
 import kotlinx.coroutines.flow.Flow
@@ -40,4 +41,23 @@ interface WorkoutDao {
 
     @Query("SELECT * FROM workout_sets WHERE sessionId = :sessionId")
     fun getSetsForSessionFlow(sessionId: Int): Flow<List<WorkoutSet>>
+
+    // Personal Best Methods
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPersonalBest(pb: PersonalBest)
+
+    @Update
+    suspend fun updatePersonalBest(pb: PersonalBest)
+
+    @Delete
+    suspend fun deletePersonalBest(pb: PersonalBest)
+
+    @Query("DELETE FROM personal_bests WHERE exerciseId = :exerciseId")
+    suspend fun deletePersonalBestsForExercise(exerciseId: Int)
+
+    @Query("SELECT * FROM personal_bests ORDER BY id ASC")
+    fun getAllPersonalBestsFlow(): Flow<List<PersonalBest>>
+
+    @Query("SELECT DISTINCT exerciseId FROM personal_bests")
+    fun getTrackedPBExerciseIdsFlow(): Flow<List<Int>>
 }
