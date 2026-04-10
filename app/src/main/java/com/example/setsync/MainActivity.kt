@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -118,10 +119,8 @@ fun GymApp(dao: WorkoutDao) {
                     "Home" to Icons.Filled.Home,
                     "Sessions" to Icons.Filled.Assignment,
                     "Exercices" to Icons.Filled.FitnessCenter,
-                    "Calculator" to Icons.Filled.Calculate,
-                    "1RM tracker" to Icons.Filled.FitnessCenter
-
-
+                    "1RM tracker" to Icons.Filled.ShowChart,
+                    "Calculator" to Icons.Filled.Calculate
 
                 )
                 items.forEachIndexed { index, item ->
@@ -171,7 +170,9 @@ fun GymApp(dao: WorkoutDao) {
                     )
                 }
                 2 -> ExercisesScreen(dao)
-                3 -> OneRMScreen()
+                3 -> OneRMTrackerScreen(dao)
+                4 -> OneRMScreen()
+
             }
         }
     }
@@ -203,7 +204,6 @@ fun HomeScreen(dao: WorkoutDao, onStartNewSession: () -> Unit, onSessionClick: (
     }
 
     Column(
-
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBg)
@@ -375,7 +375,8 @@ fun ExercisesScreen(dao: WorkoutDao) {
     Column(modifier = Modifier
         .fillMaxSize()
         .background(DarkBg)
-        .padding(20.dp)) {
+        .padding(horizontal = 20.dp)) {
+        Spacer(modifier = Modifier.height(20.dp))
         Text("Mina Övningar", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -425,13 +426,13 @@ fun ExercisesScreen(dao: WorkoutDao) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .padding(top = 8.dp),
+                .padding(vertical = 12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Blue),
             shape = RoundedCornerShape(12.dp)
         ) {
             Icon(Icons.Default.Add, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Skapa ny övning", fontWeight = FontWeight.Bold)
+            Text("Skapa ny övning", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
     }
 
@@ -571,10 +572,10 @@ fun OneRMScreen() {
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBg)
+            .padding(horizontal = 20.dp)
             .verticalScroll(rememberScrollState())
-            .padding(20.dp)
     ) {
-
+        Spacer(modifier = Modifier.height(20.dp))
         Text("1RM Räknare", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -667,6 +668,148 @@ fun OneRMScreen() {
                 }
             }
         }
+        Spacer(modifier = Modifier.height(20.dp))
+    }
+}
+
+@Composable
+fun OneRMTrackerScreen(dao: WorkoutDao) {
+    val sessions by dao.getAllSessionsFlow().collectAsState(initial = emptyList())
+    val exercises by dao.getAllExercisesFlow().collectAsState(initial = emptyList())
+
+    val latestSession = sessions.firstOrNull()
+    val setsState = if (latestSession != null) {
+        dao.getSetsForSessionFlow(latestSession.id).collectAsState(initial = emptyList())
+    } else {
+        remember { mutableStateOf(emptyList<WorkoutSet>()) }
+    }
+    val sets = setsState.value
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkBg)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                text = "1RM Tracker",
+                color = Color.White,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(24.dp)
+            ) {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    if (sets.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                            Text("Ingen historik loggad än", color = TextGray, fontSize = 14.sp)
+                        }
+                    } else {
+                        val grouped = sets.groupBy { it.exerciseId }
+                        grouped.forEach { (exerciseId, exSets) ->
+                            val exerciseName = exercises.find { it.id == exerciseId }?.name ?: "Okänd övning"
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = exerciseName,
+                                    color = Blue,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp
+                                )
+                                Icon(
+                                    Icons.Default.Edit,
+                                    contentDescription = null,
+                                    tint = TextGray,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
+                                Text("Date", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(0.5f))
+                                Text("Vikt", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                                Text("Reps", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                                Spacer(modifier = Modifier.width(18.dp))
+                            }
+                            
+                            exSets.forEachIndexed { index, set ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("${index + 1}", color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(0.5f))
+                                    Text("${set.weight} kg", color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                                    Text("${set.reps}", color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                                    Icon(
+                                        Icons.Default.Edit,
+                                        contentDescription = null,
+                                        tint = TextGray,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                Surface(
+                                    onClick = { },
+                                    color = Color.Transparent,
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, TextGray.copy(alpha = 0.5f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, tint = Blue, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Add New PB", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(120.dp))
+        }
+
+        // Floating Bottom Button
+        Button(
+            onClick = { },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(20.dp)
+                .fillMaxWidth()
+                .height(64.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Blue),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text("Add New PB Exercise",color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }
 
@@ -704,7 +847,8 @@ fun SessionsScreen(
             }
         )
     } else {
-        Column(modifier = Modifier.fillMaxSize().background(DarkBg).padding(20.dp)) {
+        Column(modifier = Modifier.fillMaxSize().background(DarkBg).padding(horizontal = 20.dp)) {
+            Spacer(modifier = Modifier.height(20.dp))
             Text("Pass", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -742,11 +886,11 @@ fun SessionsScreen(
                     editingSession = null
                     showEditor = true
                 },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp).padding(bottom = 12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Blue),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text("Starta nytt pass", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("Starta nytt pass", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
