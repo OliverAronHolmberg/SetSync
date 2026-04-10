@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -103,18 +104,36 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun GymApp(dao: WorkoutDao) {
     var selectedTab by remember { mutableStateOf(0) }
+    var startNewSessionTrigger by remember { mutableStateOf(false) }
+    var sessionToViewTrigger by remember { mutableStateOf<WorkoutSession?>(null) }
 
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = CardBg) {
-                val items = listOf("Hem" to Icons.Filled.Home, "Pass" to Icons.Filled.DateRange, "Övningar" to Icons.Filled.Star, "1RM" to Icons.Filled.Settings)
+                val items = listOf(
+                    "Home" to Icons.Filled.Home,
+                    "Sessions" to Icons.Filled.Assignment,
+                    "Exercices" to Icons.Filled.FitnessCenter,
+                    "1RM Calculator" to Icons.Filled.Calculate
+                )
                 items.forEachIndexed { index, item ->
                     NavigationBarItem(
                         selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        label = { Text(item.first, color = if (selectedTab == index) Blue else TextGray, fontSize = 12.sp) },
-                        icon = { Icon(item.second, contentDescription = item.first, tint = if (selectedTab == index) Blue else TextGray) },
-                        colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent)
+                        onClick = {
+                            selectedTab = index
+                            if (index != 1) {
+                                sessionToViewTrigger = null
+                            }
+                        },
+                        label = { Text(item.first, fontSize = 10.sp) },
+                        icon = { Icon(item.second, contentDescription = item.first) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Blue,
+                            selectedTextColor = Blue,
+                            unselectedIconColor = TextGray,
+                            unselectedTextColor = TextGray,
+                            indicatorColor = Color.Transparent
+                        )
                     )
                 }
             }
@@ -125,9 +144,25 @@ fun GymApp(dao: WorkoutDao) {
             .fillMaxSize()
             .padding(padding)) {
             when (selectedTab) {
-                0 -> HomeScreen()
-                1 -> SessionsScreen(dao)
-                2 -> ExercisesScreen(dao) // Passes the DAO to your exercise list
+                0 -> HomeScreen(dao, onStartNewSession = {
+                    startNewSessionTrigger = true
+                    selectedTab = 1
+                }, onSessionClick = { session ->
+                    sessionToViewTrigger = session
+                    selectedTab = 1
+                })
+                1 -> {
+                    SessionsScreen(
+                        dao = dao,
+                        startNewSessionTrigger = startNewSessionTrigger,
+                        viewSessionTrigger = sessionToViewTrigger,
+                        onSessionHandled = {
+                            startNewSessionTrigger = false
+                            sessionToViewTrigger = null
+                        }
+                    )
+                }
+                2 -> ExercisesScreen(dao)
                 3 -> OneRMScreen()
             }
         }
@@ -135,44 +170,73 @@ fun GymApp(dao: WorkoutDao) {
 }
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(dao: WorkoutDao, onStartNewSession: () -> Unit, onSessionClick: (WorkoutSession) -> Unit) {
+    val sessions by dao.getAllSessionsFlow().collectAsState(initial = emptyList())
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBg)
-            .padding(20.dp)
+            .padding(horizontal = 20.dp)
+            .verticalScroll(rememberScrollState())
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+        
+        Text(
+            text = "Hem",
+            color = Color.White,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center
+        )
 
-        Text("Hej, Magnus!", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        Text("\"Håll dig stark, varje rep räknas.\"", color = TextGray, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp, bottom = 24.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
+        // Chart Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CardBg),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(16.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Veckans Träning", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text(">", color = TextGray)
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Veckans Träning", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextGray)
                 }
-                Text("Veckans totala träning", color = TextGray, fontSize = 12.sp)
-                Spacer(modifier = Modifier.height(16.dp))
-                val days = listOf("To", "Me", "Do", "Fr", "Sa", "Sö")
-                val heights = listOf(0.4f, 0.7f, 0.3f, 0.9f, 0.5f, 0.2f)
-                Row(modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
+                Text("Veckans ta träning", color = TextGray, fontSize = 14.sp)
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    val days = listOf("Måndag", "Tisdag", "Onsdag", "Torsdag", "Fredag", "Lördag", "Söndag")
+                    val heights = listOf(0.4f, 0.55f, 0.3f, 0.25f, 0.85f, 0.7f, 0.95f)
+
                     days.forEachIndexed { index, day ->
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
-                            Box(modifier = Modifier
-                                .width(20.dp)
-                                .height((heights[index] * 60).dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Blue))
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(day, color = TextGray, fontSize = 10.sp)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Bottom,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(24.dp)
+                                    .fillMaxHeight(heights[index])
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(if (index == 4 || index == 6) Blue else Blue.copy(alpha = 0.4f))
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(day, color = TextGray, fontSize = 8.sp, maxLines = 1)
                         }
                     }
                 }
@@ -182,36 +246,57 @@ fun HomeScreen() {
         Spacer(modifier = Modifier.height(24.dp))
 
         Button(
-            onClick = {},
+            onClick = onStartNewSession,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
+                .height(56.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Blue),
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Text("Starta nytt pass", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text("Senaste pass", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CardBg),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Row(modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text("Senaste pass", color = Color.White, fontWeight = FontWeight.Bold)
-                    Text("22 sets", color = TextGray, fontSize = 12.sp)
+            Text("Skapa nytt pass", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Text("Senaste pass", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (sessions.isEmpty()) {
+            Text("Inga pass loggade än", color = TextGray, fontSize = 14.sp)
+        } else {
+            sessions.take(10).forEach { session ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                        .clickable { onSessionClick(session) },
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(DarkBg),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.DirectionsRun, contentDescription = null, tint = Blue)
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Tidigare pass", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(session.date, color = TextGray, fontSize = 14.sp)
+                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextGray)
+                    }
                 }
-                Text(">", color = TextGray)
             }
         }
+        Spacer(modifier = Modifier.height(20.dp))
     }
 }
 
@@ -230,7 +315,7 @@ fun ExercisesScreen(dao: WorkoutDao) {
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
-        onResult = { uri -> 
+        onResult = { uri ->
             if (uri != null) {
                 scope.launch(Dispatchers.IO) {
                     val localUri = saveImageToInternalStorage(context, uri)
@@ -282,18 +367,6 @@ fun ExercisesScreen(dao: WorkoutDao) {
                         currentName = exercise.name
                         selectedImageUri = exercise.imageUri?.let { Uri.parse(it) }
                         showDialog = true
-                    },
-                    onDelete = {
-                        scope.launch(Dispatchers.IO) { 
-                            // Cleanup local file if it exists
-                            exercise.imageUri?.let { uriStr ->
-                                try {
-                                    val file = File(Uri.parse(uriStr).path!!)
-                                    if (file.exists()) file.delete()
-                                } catch (e: Exception) {}
-                            }
-                            dao.deleteExercise(exercise) 
-                        }
                     }
                 )
             }
@@ -408,7 +481,7 @@ fun ExercisesScreen(dao: WorkoutDao) {
 }
 
 @Composable
-fun ExerciseCardItem(exercise: Exercise, onEdit: () -> Unit, onDelete: () -> Unit) {
+fun ExerciseCardItem(exercise: Exercise, onEdit: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBg),
@@ -439,9 +512,6 @@ fun ExerciseCardItem(exercise: Exercise, onEdit: () -> Unit, onDelete: () -> Uni
 
             IconButton(onClick = onEdit) {
                 Icon(Icons.Default.Edit, contentDescription = "Redigera", tint = Blue)
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Radera", tint = Color.Red.copy(alpha = 0.7f))
             }
         }
     }
@@ -559,24 +629,26 @@ fun OneRMScreen() {
 }
 
 @Composable
-fun SessionsScreen(dao: WorkoutDao) {
+fun SessionsScreen(
+    dao: WorkoutDao,
+    startNewSessionTrigger: Boolean = false,
+    viewSessionTrigger: WorkoutSession? = null,
+    onSessionHandled: () -> Unit = {}
+) {
     var showEditor by remember { mutableStateOf(false) }
     var editingSession by remember { mutableStateOf<WorkoutSession?>(null) }
-    val sessions by dao.getAllSessionsFlow().collectAsState(initial = emptyList())
     var expandedSessionId by remember { mutableStateOf<Int?>(null) }
-    val scope = rememberCoroutineScope()
-    var sessionSets by remember { mutableStateOf<Map<Int, List<WorkoutSet>>>(emptyMap()) }
+    val sessions by dao.getAllSessionsFlow().collectAsState(initial = emptyList())
     val exercises by dao.getAllExercisesFlow().collectAsState(initial = emptyList())
 
-    // Refresh sets for the expanded session when the data changes or editor closes
-    LaunchedEffect(sessions, expandedSessionId, showEditor) {
-        if (!showEditor) {
-            expandedSessionId?.let { id ->
-                val loaded = withContext(Dispatchers.IO) {
-                    dao.getSetsForSession(id)
-                }
-                sessionSets = sessionSets + (id to loaded)
-            }
+    LaunchedEffect(startNewSessionTrigger, viewSessionTrigger) {
+        if (startNewSessionTrigger) {
+            editingSession = null
+            showEditor = true
+            onSessionHandled()
+        } else if (viewSessionTrigger != null) {
+            expandedSessionId = viewSessionTrigger.id
+            onSessionHandled()
         }
     }
 
@@ -604,80 +676,19 @@ fun SessionsScreen(dao: WorkoutDao) {
                     }
                 } else {
                     sessions.forEach { session ->
-                        val isExpanded = expandedSessionId == session.id
-                        val sets = sessionSets[session.id] ?: emptyList()
-
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = CardBg),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(session.location.ifBlank { "Okänd plats" }, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                        Text(session.date, color = TextGray, fontSize = 13.sp)
-                                    }
-                                    IconButton(onClick = {
-                                        editingSession = session
-                                        showEditor = true
-                                    }) {
-                                        Icon(Icons.Default.Edit, contentDescription = "Redigera", tint = Blue)
-                                    }
-                                    IconButton(onClick = {
-                                        if (isExpanded) {
-                                            expandedSessionId = null
-                                        } else {
-                                            expandedSessionId = session.id
-                                            scope.launch(Dispatchers.IO) {
-                                                val loaded = dao.getSetsForSession(session.id)
-                                                withContext(Dispatchers.Main) {
-                                                    sessionSets = sessionSets + (session.id to loaded)
-                                                }
-                                            }
-                                        }
-                                    }) {
-                                        Icon(
-                                            if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                            contentDescription = null,
-                                            tint = TextGray
-                                        )
-                                    }
-                                }
-
-                                if (isExpanded) {
-                                    HorizontalDivider(color = DarkBg)
-                                    Column(modifier = Modifier.padding(16.dp)) {
-                                        if (sets.isEmpty()) {
-                                            Text("Inga sets loggade", color = TextGray, fontSize = 14.sp)
-                                        } else {
-                                            val grouped = sets.groupBy { it.exerciseId }
-                                            grouped.forEach { (exerciseId, exSets) ->
-                                                val exerciseName = exercises.find { it.id == exerciseId }?.name ?: "Okänd övning"
-                                                Text(exerciseName, color = Blue, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(bottom = 6.dp))
-                                                Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
-                                                    Text("Set", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(0.5f))
-                                                    Text("Vikt", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                                                    Text("Reps", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                                                }
-                                                exSets.forEachIndexed { index, set ->
-                                                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                                                        Text("${index + 1}", color = TextGray, fontSize = 14.sp, modifier = Modifier.weight(0.5f))
-                                                        Text("${set.weight} kg", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                                                        Text("${set.reps}", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                                                    }
-                                                }
-                                                Spacer(modifier = Modifier.height(12.dp))
-                                            }
-                                        }
-                                    }
-                                }
+                        SessionCardItem(
+                            session = session,
+                            dao = dao,
+                            exercises = exercises,
+                            isExpanded = expandedSessionId == session.id,
+                            onExpandToggle = {
+                                expandedSessionId = if (expandedSessionId == session.id) null else session.id
+                            },
+                            onEdit = {
+                                editingSession = session
+                                showEditor = true
                             }
-                        }
+                        )
                     }
                 }
             }
@@ -694,6 +705,76 @@ fun SessionsScreen(dao: WorkoutDao) {
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text("Starta nytt pass", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+fun SessionCardItem(
+    session: WorkoutSession,
+    dao: WorkoutDao,
+    exercises: List<Exercise>,
+    isExpanded: Boolean,
+    onExpandToggle: () -> Unit,
+    onEdit: () -> Unit
+) {
+    val sets by dao.getSetsForSessionFlow(session.id).collectAsState(initial = emptyList())
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onExpandToggle() },
+        colors = CardDefaults.cardColors(containerColor = CardBg),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(session.location.ifBlank { "Okänd plats" }, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(session.date, color = TextGray, fontSize = 13.sp)
+                }
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Default.Edit, contentDescription = "Redigera", tint = Blue)
+                }
+                IconButton(onClick = onExpandToggle) {
+                    Icon(
+                        if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = TextGray
+                    )
+                }
+            }
+
+            if (isExpanded) {
+                HorizontalDivider(color = DarkBg)
+                Column(modifier = Modifier.padding(16.dp)) {
+                    if (sets.isEmpty()) {
+                        Text("Inga sets loggade", color = TextGray, fontSize = 14.sp)
+                    } else {
+                        val grouped = sets.groupBy { it.exerciseId }
+                        grouped.forEach { (exerciseId, exSets) ->
+                            val exerciseName = exercises.find { it.id == exerciseId }?.name ?: "Okänd övning"
+                            Text(exerciseName, color = Blue, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(bottom = 6.dp))
+                            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                                Text("Set", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(0.5f))
+                                Text("Vikt", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                                Text("Reps", color = TextGray, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                            }
+                            exSets.forEachIndexed { index, set ->
+                                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                                    Text("${index + 1}", color = TextGray, fontSize = 14.sp, modifier = Modifier.weight(0.5f))
+                                    Text("${set.weight} kg", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                    Text("${set.reps}", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                    }
+                }
             }
         }
     }
