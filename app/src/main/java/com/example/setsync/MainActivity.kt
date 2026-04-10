@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -42,6 +43,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import java.io.File
 import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -103,7 +107,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun GymApp(dao: WorkoutDao) {
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(0) }
     var startNewSessionTrigger by remember { mutableStateOf(false) }
     var sessionToViewTrigger by remember { mutableStateOf<WorkoutSession?>(null) }
 
@@ -173,6 +177,27 @@ fun GymApp(dao: WorkoutDao) {
 fun HomeScreen(dao: WorkoutDao, onStartNewSession: () -> Unit, onSessionClick: (WorkoutSession) -> Unit) {
     val sessions by dao.getAllSessionsFlow().collectAsState(initial = emptyList())
 
+    val monthlyStats = remember(sessions) {
+        val stats = IntArray(12) { 0 }
+        val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+        val cal = Calendar.getInstance()
+        val currentYear = cal.get(Calendar.YEAR)
+
+        sessions.forEach { session ->
+            try {
+                val date = sdf.parse(session.date)
+                if (date != null) {
+                    cal.time = date
+                    if (cal.get(Calendar.YEAR) == currentYear) {
+                        stats[cal.get(Calendar.MONTH)]++
+                    }
+                }
+            } catch (e: Exception) {
+            }
+        }
+        stats
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -183,12 +208,7 @@ fun HomeScreen(dao: WorkoutDao, onStartNewSession: () -> Unit, onSessionClick: (
         Spacer(modifier = Modifier.height(20.dp))
         
         Text(
-            text = "Hem",
-            color = Color.White,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center
+            text = "Hem", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -199,44 +219,57 @@ fun HomeScreen(dao: WorkoutDao, onStartNewSession: () -> Unit, onSessionClick: (
             colors = CardDefaults.cardColors(containerColor = CardBg),
             shape = RoundedCornerShape(16.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 24.dp, bottom = 16.dp, start = 8.dp, end = 8.dp)
+                    .height(200.dp),
+                contentAlignment = Alignment.BottomCenter
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Veckans Träning", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextGray)
-                }
-                Text("Veckans ta träning", color = TextGray, fontSize = 14.sp)
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    val days = listOf("Måndag", "Tisdag", "Onsdag", "Torsdag", "Fredag", "Lördag", "Söndag")
-                    val heights = listOf(0.4f, 0.55f, 0.3f, 0.25f, 0.85f, 0.7f, 0.95f)
+                    val months = listOf("JAN", "FEB", "MAR", "APR", "MAJ", "JUN", "JUL", "AUG", "SEP", "OKT", "NOV", "DEC")
+                    val maxVal = monthlyStats.maxOrNull()?.coerceAtLeast(1) ?: 1
 
-                    days.forEachIndexed { index, day ->
+                    months.forEachIndexed { index, month ->
+                        val count = monthlyStats[index]
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Bottom,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .width(24.dp)
-                                    .fillMaxHeight(heights[index])
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(if (index == 4 || index == 6) Blue else Blue.copy(alpha = 0.4f))
+                            if (count > 0) {
+                                Text(
+                                    text = count.toString(),
+                                    color = TextGray,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(bottom = 6.dp)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .width(20.dp)
+                                        .fillMaxHeight((count.toFloat() / maxVal) * 0.75f)
+                                        .background(Blue)
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(bottom = 2.dp)
+                                        .width(20.dp)
+                                        .height(4.dp)
+                                        .background(TextGray.copy(alpha = 0.3f))
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = month,
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(day, color = TextGray, fontSize = 8.sp, maxLines = 1)
                         }
                     }
                 }
@@ -564,12 +597,11 @@ fun OneRMScreen() {
                     placeholder = { Text("0", color = TextGray) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
                         focusedBorderColor = Blue,
                         unfocusedBorderColor = CardBg,
                         focusedContainerColor = CardBg,
-                        unfocusedContainerColor = CardBg,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        unfocusedContainerColor = CardBg
                     ),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = {
