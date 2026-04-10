@@ -232,10 +232,15 @@ fun HomeScreen(dao: WorkoutDao, onStartNewSession: () -> Unit, onSessionClick: (
                     verticalAlignment = Alignment.Bottom
                 ) {
                     val months = listOf("JAN", "FEB", "MAR", "APR", "MAJ", "JUN", "JUL", "AUG", "SEP", "OKT", "NOV", "DEC")
-                    val maxVal = monthlyStats.maxOrNull()?.coerceAtLeast(1) ?: 1
+                    val calendar = Calendar.getInstance()
+                    val currentYear = calendar.get(Calendar.YEAR)
 
                     months.forEachIndexed { index, month ->
                         val count = monthlyStats[index]
+                        calendar.set(Calendar.YEAR, currentYear)
+                        calendar.set(Calendar.MONTH, index)
+                        val daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Bottom,
@@ -251,7 +256,7 @@ fun HomeScreen(dao: WorkoutDao, onStartNewSession: () -> Unit, onSessionClick: (
                                 Box(
                                     modifier = Modifier
                                         .width(20.dp)
-                                        .fillMaxHeight((count.toFloat() / maxVal) * 0.75f)
+                                        .fillMaxHeight((count.toFloat() / daysInMonth).coerceAtMost(1f) * 0.75f)
                                         .background(Blue)
                                 )
                             } else {
